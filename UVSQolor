@@ -6,14 +6,13 @@ from tkinter import filedialog
 
 # initialiser les variables
 img = None
+img_org = None
 photo = None
 matrice_pixels = None
 
 
 def charger():  # Demander de charger une image sur tkinter avec filedialog
-    global photo
-    global img
-    global canvas
+    global photo, img, canvas, img_org
 
     nom_fichier = str(filedialog.askopenfilename(title="Ouvrir une image"))
 
@@ -26,33 +25,91 @@ def charger():  # Demander de charger une image sur tkinter avec filedialog
 
         canvas.create_image(0, 0, anchor=tk.NW, image=photo)
 
+    img_org = img  # sauvarge de l'image dans la variable img_org
 
-def appliquer_filtre(image, effet):  # Application des filtres à l'image
-    global photo, img, canvas, matrice_pixels
+
+def appliquer_filtre(effet):  # Application des filtres à l'image
+    global photo, img, canvas, matrice_pixels, img_org
 
     try:
-        matrice_pixels = np.array(image)  # Convertir en tableau
+        matrice_pixels = np.array(img)  # Convertir en tableau
 
         if effet == "vert":  # Appliquer le filtre : supprimer rouge (R) et bleu (B)
             matrice_pixels[..., 0] = 0  # canal R
             matrice_pixels[..., 2] = 0  # canal B
         elif effet == 'gris':
-            new_img = image.convert("L")  # Convertit l'image en "luminance" (une valeur par pixel)
-            matrice_pixels = np.array(new_img.convert("RGB"))  # Reconversion au format RGB avec trois valeurs par pixel
+            img = img.convert("L")  # Convertit l'image en "luminance" (une valeur par pixel)
+            matrice_pixels = np.array(img.convert("RGB"))  # Reconversion au format RGB avec trois valeurs par pixel
         elif effet == "Nul":
-            matrice_pixels = np.array(img)
+            matrice_pixels = np.array(img_org)
 
         # Recréer une image à partir de la matrice
-        new_img = Image.fromarray(matrice_pixels)
+        img = Image.fromarray(matrice_pixels)
 
         if canvas is not None:  # Réinitialisation du canvas
-            photo = ImageTk.PhotoImage(new_img)
+            photo = ImageTk.PhotoImage(img)
             canvas.delete("all")
-            canvas.config(width=new_img.size[0], height=new_img.size[1])
+            canvas.config(width=img.size[0], height=img.size[1])
             canvas.create_image(0, 0, anchor=tk.NW, image=photo)
 
     except Exception as e:
         print("Erreur :", e)
+
+
+def luminositer():
+    global photo, img, canvas, matrice_pixels, img_org
+
+    global dialogue_effet
+    dialogue_effet = tk.Toplevel(fenetre)
+    dialogue_effet.title("Luminosité")
+    dialogue_effet.geometry("300x150")
+    dialogue_effet.grab_set()
+
+    matrice_pixels = np.array(img)
+
+    def correction_gamma(valeur_gamma_str):
+        gamma = 1.0 / float(valeur_gamma_str)
+        matrice_norm = matrice_pixels.astype(np.float32) / 255.0
+        matrice_corr = np.power(matrice_norm, gamma)
+        matrice_gamma = np.clip(matrice_corr * 255, 0, 255).astype(np.uint8)
+
+        img_corr = Image.fromarray(matrice_gamma)
+
+        # Affichage en temps réel
+        global photo
+        photo = ImageTk.PhotoImage(img_corr)
+        canvas.config(width=img_corr.width, height=img_corr.height)
+        canvas.delete("all")
+        canvas.create_image(0, 0, anchor=tk.NW, image=photo)
+
+    def annuler_effet():
+        global img, photo
+        img = img
+        photo = ImageTk.PhotoImage(img)
+        canvas.config(width=img.width, height=img.height)
+        canvas.delete("all")
+        canvas.create_image(0, 0, anchor=tk.NW, image=photo)
+        dialogue_effet.destroy()
+
+    # Slider de gamma
+    slider = tk.Scale(dialogue_effet, from_=0.1, to=3.0,
+                      orient=tk.HORIZONTAL, length=200,
+                      resolution=0.1, digits=2,
+                      command=correction_gamma)
+    slider.set(1.0)
+    slider.pack(pady=20)
+
+    # Boutons
+    frame_boutons = tk.Frame(dialogue_effet)
+    frame_boutons.pack(side=tk.BOTTOM, pady=10)
+
+    bouton_appliquer = tk.Button(frame_boutons, text="Appliquer",
+                                 command=dialogue_effet.destroy)
+    bouton_appliquer.pack(side=tk.LEFT, padx=10)
+
+    bouton_annuler = tk.Button(frame_boutons, text="Annuler",
+                               command=annuler_effet)
+    bouton_annuler.pack(side=tk.LEFT, padx=10)
 
 
 # Fenêtre principale
@@ -75,9 +132,14 @@ menu_ouvrir.add_command(label="Ouvrir une image", command=lambda: charger())
 # Le menu pour les effets
 menu_effets = tk.Menu(menu)
 menu.add_cascade(label="Effets", menu=menu_effets)
-menu_effets.add_command(label="Ajouter un filtre vert", command=lambda: appliquer_filtre(img, "vert"))
-menu_effets.add_command(label="Ajouter un filtre gris", command=lambda: appliquer_filtre(img, "gris"))
-menu_effets.add_command(label="Enlever tous les effets", command=lambda: appliquer_filtre(img, "Nul"))
+menu_effets.add_command(label="Ajouter un filtre vert", command=lambda: appliquer_filtre("vert"))
+menu_effets.add_command(label="Ajouter un filtre gris", command=lambda: appliquer_filtre("gris"))
+menu_effets.add_command(label="Enlever tous les effets", command=lambda: appliquer_filtre("Nul"))
+
+# Menu luminostié
+menu_lum = tk.Menu(menu)
+menu.add_cascade(label="Luminosité", menu=menu_lum)
+menu_lum.add_command(label="Ajuster la luminostié", command=lambda: luminositer())
 
 fenetre.pack_propagate(True)
 fenetre.config(menu=menu)
