@@ -1,0 +1,84 @@
+import numpy as np
+from PIL import Image, ImageTk
+import tkinter as tk
+from tkinter import filedialog
+
+
+# initialiser les variables
+img = None
+photo = None
+matrice_pixels = None
+
+
+def charger():  # Demander de charger une image sur tkinter avec filedialog
+    global photo
+    global img
+    global canvas
+
+    nom_fichier = str(filedialog.askopenfilename(title="Ouvrir une image"))
+
+    if nom_fichier != "":
+        img = Image.open(nom_fichier)  #  .convert("RGB") <-- plus tard si besoin
+        photo = ImageTk.PhotoImage(img)
+
+        canvas.delete("all")
+        canvas.config(width=img.size[0], height=img.size[1])
+
+        canvas.create_image(0, 0, anchor=tk.NW, image=photo)
+
+
+def appliquer_filtre(image, effet):  # Application des filtres à l'image
+    global photo, img, canvas, matrice_pixels
+
+    try:
+        matrice_pixels = np.array(image)  # Convertir en tableau
+
+        if effet == "vert":  # Appliquer le filtre : supprimer rouge (R) et bleu (B)
+            matrice_pixels[..., 0] = 0  # canal R
+            matrice_pixels[..., 2] = 0  # canal B
+        elif effet == 'gris':
+            new_img = image.convert("L")  # Convertit l'image en "luminance" (une valeur par pixel)
+            matrice_pixels = np.array(new_img.convert("RGB"))  # Reconversion au format RGB avec trois valeurs par pixel
+        elif effet == "Nul":
+            matrice_pixels = np.array(img)
+
+        # Recréer une image à partir de la matrice
+        new_img = Image.fromarray(matrice_pixels)
+
+        if canvas is not None:  # Réinitialisation du canvas
+            photo = ImageTk.PhotoImage(new_img)
+            canvas.delete("all")
+            canvas.config(width=new_img.size[0], height=new_img.size[1])
+            canvas.create_image(0, 0, anchor=tk.NW, image=photo)
+
+    except Exception as e:
+        print("Erreur :", e)
+
+
+# Fenêtre principale
+fenetre = tk.Tk()
+fenetre.title("UVSQolor")
+fenetre.geometry("500x500")
+
+# Création du canvas
+canvas = tk.Canvas(fenetre)
+canvas.pack()
+
+# Création d'un menu
+menu = tk.Menu(fenetre)
+
+# Le menu pour ouvrir une image
+menu_ouvrir = tk.Menu(menu)
+menu.add_cascade(label="Ouvrir", menu=menu_ouvrir)
+menu_ouvrir.add_command(label="Ouvrir une image", command=lambda: charger())
+
+# Le menu pour les effets
+menu_effets = tk.Menu(menu)
+menu.add_cascade(label="Effets", menu=menu_effets)
+menu_effets.add_command(label="Ajouter un filtre vert", command=lambda: appliquer_filtre(img, "vert"))
+menu_effets.add_command(label="Ajouter un filtre gris", command=lambda: appliquer_filtre(img, "gris"))
+menu_effets.add_command(label="Enlever tous les effets", command=lambda: appliquer_filtre(img, "Nul"))
+
+fenetre.pack_propagate(True)
+fenetre.config(menu=menu)
+fenetre.mainloop()
