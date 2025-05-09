@@ -2,76 +2,62 @@ import numpy as np
 from PIL import Image, ImageTk
 import tkinter as tk
 from tkinter import filedialog
-from scipy.signal import convolve2d
 
-
-# initialiser les variables
+# Initialiser les variables
 img = None
 img_org = None
 photo = None
+matrice_pixels = None
 
-
-def refresh_canva(image):
-    global photo
-    photo = ImageTk.PhotoImage(image)
-    canvas.delete("all")
-    canvas.config(width=image.size[0], height=image.size[1])
-    canvas.create_image(0, 0, anchor=tk.NW, image=photo)
-
-
-def charger():  # Demander de charger une image sur tkinter avec filedialog
+def charger():
     global photo, img, canvas, img_org
 
     nom_fichier = str(filedialog.askopenfilename(title="Ouvrir une image"))
 
     if nom_fichier != "":
-        img = Image.open(nom_fichier)  # .convert("RGB") <-- plus tard si besoin
+        img = Image.open(nom_fichier)
         photo = ImageTk.PhotoImage(img)
 
         canvas.delete("all")
         canvas.config(width=img.size[0], height=img.size[1])
-
         canvas.create_image(0, 0, anchor=tk.NW, image=photo)
 
-    img_org = img  # sauvarge de l'image dans la variable img_org
+    img_org = img
 
-
-def appliquer_filtre(effet):  # Application des filtres à l'image
-    global photo, img, canvas, img_org
+def appliquer_filtre(effet):
+    global photo, img, canvas, matrice_pixels, img_org
 
     try:
-        matrice_pixels = np.array(img)  # Convertir en tableau
+        matrice_pixels = np.array(img)
 
-        if effet == "vert":  # Supprimer rouge (R) et bleu (B) laisser vert (G)
-            matrice_pixels[..., 0] = 0  # canal R
-            matrice_pixels[..., 2] = 0  # canal B
+        if effet == "vert":
+            matrice_pixels[..., 0] = 0
+            matrice_pixels[..., 2] = 0
         elif effet == 'gris':
-            img = img.convert("L")  # Convertit l'image en "luminance" (une valeur par pixel)
-            matrice_pixels = np.array(img.convert("RGB"))  # Reconversion au format RGB avec trois valeurs par pixel
+            img = img.convert("L")
+            matrice_pixels = np.array(img.convert("RGB"))
         elif effet == "Nul":
             matrice_pixels = np.array(img_org)
 
-        # Recréer une image à partir de la matrice
         img = Image.fromarray(matrice_pixels)
 
-        if canvas is not None:  # Réinitialisation du canvas
-            refresh_canva(img)
+        if canvas is not None:
+            photo = ImageTk.PhotoImage(img)
+            canvas.delete("all")
+            canvas.config(width=img.size[0], height=img.size[1])
+            canvas.create_image(0, 0, anchor=tk.NW, image=photo)
 
     except Exception as e:
         print("Erreur :", e)
 
-
 def luminositer():
-    global photo, img, canvas, img_org
+    global photo, img, canvas, matrice_pixels, img_org
+    global dialogue_effet
 
     dialogue_effet = tk.Toplevel(fenetre)
     dialogue_effet.title("Luminosité")
-    dialogue_effet.geometry("300x200")
+    dialogue_effet.geometry("300x150")
     dialogue_effet.grab_set()
-
-    dialogue = tk.Label(dialogue_effet, text='Faites glisser à droite pour augmenter la luminosité \n'
-                                             'ou à gauche pour la diminuer')
-    dialogue.pack()
 
     matrice_pixels = np.array(img)
 
@@ -83,16 +69,21 @@ def luminositer():
 
         img_corr = Image.fromarray(matrice_gamma)
 
-        # Affichage en temps réel
-        refresh_canva(img_corr)
+        global photo
+        photo = ImageTk.PhotoImage(img_corr)
+        canvas.config(width=img_corr.width, height=img_corr.height)
+        canvas.delete("all")
+        canvas.create_image(0, 0, anchor=tk.NW, image=photo)
 
     def annuler_effet():
         global img, photo
         img = img
-        refresh_canva(img)
+        photo = ImageTk.PhotoImage(img)
+        canvas.config(width=img.width, height=img.height)
+        canvas.delete("all")
+        canvas.create_image(0, 0, anchor=tk.NW, image=photo)
         dialogue_effet.destroy()
 
-    # Slider de gamma
     slider = tk.Scale(dialogue_effet, from_=0.1, to=3.0,
                       orient=tk.HORIZONTAL, length=200,
                       resolution=0.1, digits=2,
@@ -100,7 +91,6 @@ def luminositer():
     slider.set(1.0)
     slider.pack(pady=20)
 
-    # Boutons
     frame_boutons = tk.Frame(dialogue_effet)
     frame_boutons.pack(side=tk.BOTTOM, pady=10)
 
@@ -112,186 +102,26 @@ def luminositer():
                                command=annuler_effet)
     bouton_annuler.pack(side=tk.LEFT, padx=10)
 
+# ✅ Nouvelle fonction : fusion d’image simple avec redimensionnement
+def fusion_images():
+    global img, photo, canvas
 
-def contraste():
-    global img, img_org
+    chemin_image2 = filedialog.askopenfilename(title="Choisir une image à fusionner")
+    if chemin_image2 == "":
+        return
 
-    fenetre_contraste = tk.Toplevel(fenetre)
-    fenetre_contraste.title("Contraste sigmoïde")
-    fenetre_contraste.geometry("300x260")
-    fenetre_contraste.grab_set()
+    img2 = Image.open(chemin_image2)
 
-    def correction_sigmoide(c, k):
-        matrice_pixels = np.array(img)
-        matrice_norm = matrice_pixels.astype(np.float32) / 255.0  # on normalise les pixels entre "0 et 1"
-        f_de_x = 1 / (1 + np.exp(-k * c * (matrice_norm-0.5)))
-        f_de_x = np.clip(f_de_x * 255, 0, 255).astype(np.uint8)
+    if img2.size != img.size:
+        img2 = img2.resize(img.size)
 
-        img_corr = Image.fromarray(f_de_x)  # f_de_x étant les nouveaux pixels
+    img_fusion = Image.blend(img, img2, alpha=0.5)
 
-        refresh_canva(img_corr)
-
-    def annuler_effet():
-        global img
-        img = img
-        refresh_canva(img)
-        fenetre_contraste.destroy()
-
-    # Slider de contraste
-    slider_contraste = tk.Scale(fenetre_contraste, from_=0.1, to=5.0, orient=tk.HORIZONTAL, resolution=0.1
-                                , label='Contraste')
-    slider_contraste.set(1.0)
-    slider_contraste.pack(pady=20)
-
-    # Slider de pente
-    slider_pente = tk.Scale(fenetre_contraste, from_=1, to=20, orient=tk.HORIZONTAL, resolution=1, label='Pente')
-    slider_pente.set(10)
-    slider_pente.pack(pady=20)
-
-    slider_contraste.config(command=lambda c: correction_sigmoide(float(c), slider_pente.get()))
-    slider_pente.config(command=lambda k: correction_sigmoide(slider_contraste.get(), float(k)))
-
-    # Boutons
-    frame_boutons = tk.Frame(fenetre_contraste)
-    frame_boutons.pack(side=tk.BOTTOM, pady=10)
-
-    bouton_appliquer = tk.Button(frame_boutons, text="Appliquer", command=fenetre_contraste.destroy)
-    bouton_appliquer.pack(side=tk.LEFT, padx=10)
-
-    bouton_annuler = tk.Button(frame_boutons, text="Annuler", command=annuler_effet)
-    bouton_annuler.pack(side=tk.LEFT, padx=10)
-
-
-def flou():
-    global img, img_org
-
-    fenetre_flou = tk.Toplevel(fenetre)
-    fenetre_flou.title("Flou")
-    fenetre_flou.geometry("300x200")
-    fenetre_flou.grab_set()
-
-    def appliquer_effet(taille):
-        taille = int(taille)
-        if taille % 2 == 0:
-            taille += 1
-
-        kernel = np.ones((taille, taille)) / (taille*taille)
-        matrice_pixels = np.array(img)
-        matrice_flou = matrice_pixels
-
-        for i in range(3):
-            matrice_flou[:, :, i] = convolve2d(matrice_pixels[:, :, i], kernel, mode='same', boundary='symm')
-
-        matrice_flou = np.clip(matrice_flou, 0, 255)
-
-        img_flou = Image.fromarray(matrice_flou)
-        refresh_canva(img_flou)
-
-    def annuler_effet():
-        global img
-        img = img
-        refresh_canva(img)
-        fenetre_flou.destroy()
-
-    slider = tk.Scale(fenetre_flou, from_=1, to=20, orient=tk.HORIZONTAL, command=appliquer_effet
-                            , resolution=1, label='Flou')
-    slider.pack(pady=20)
-
-    # Boutons
-    frame_boutons = tk.Frame(fenetre_flou)
-    frame_boutons.pack(side=tk.BOTTOM, pady=10)
-
-    bouton_appliquer = tk.Button(frame_boutons, text="Appliquer", command=fenetre_flou.destroy)
-    bouton_appliquer.pack(side=tk.LEFT, padx=10)
-
-    bouton_annuler = tk.Button(frame_boutons, text="Annuler", command=annuler_effet)
-    bouton_annuler.pack(side=tk.LEFT, padx=10)
-
-
-def flou_gaussien():
-    global img, img_org
-
-    fenetre_flou = tk.Toplevel(fenetre)
-    fenetre_flou.title("Flou Gaussien")
-    fenetre_flou.geometry("300x200")
-    fenetre_flou.grab_set()
-
-    def appliquer_effet(taille, sigma):
-        if taille % 2 == 0:
-            taille += 1
-        positions = np.linspace(-(taille//2), taille//2, taille)
-        xx, yy = np.meshgrid(positions, positions)
-
-        kernel_gaussien = np.exp(-(xx**2 + yy**2) / (2*sigma**2))
-        kernel_gaussien /= np.sum(kernel_gaussien)
-        matrice_pixels = np.array(img)
-        matrice_flou = matrice_pixels
-
-        for i in range(3):
-            matrice_flou[:, :, i] = convolve2d(matrice_pixels[:, :, i], kernel_gaussien, mode='same', boundary='symm')
-
-        matrice_flou = np.clip(matrice_flou, 0, 255)
-
-        img_flou = Image.fromarray(matrice_flou)
-        refresh_canva(img_flou)
-
-    def annuler_effet():
-        global img
-        img = img
-        refresh_canva(img)
-        fenetre_flou.destroy()
-
-    slider_taille = tk.Scale(fenetre_flou, from_=1, to=5, orient=tk.HORIZONTAL, resolution=1, label='Flou')
-    slider_taille.pack(pady=8)
-
-    slider_dispersion = tk.Scale(fenetre_flou, from_=0.1, to=10.0, orient=tk.HORIZONTAL,
-                                 resolution=0.1, label='Dispersion')
-    slider_dispersion.set(1.0)
-    slider_dispersion.pack(pady=8)
-
-    slider_taille.config(command=lambda taille: appliquer_effet(int(taille), slider_dispersion.get()))
-    slider_dispersion.config(command=lambda sigma: appliquer_effet(slider_taille.get(), float(sigma)))
-
-    # Boutons
-    frame_boutons = tk.Frame(fenetre_flou)
-    frame_boutons.pack(side=tk.BOTTOM, pady=10)
-
-    bouton_appliquer = tk.Button(frame_boutons, text="Appliquer", command=fenetre_flou.destroy)
-    bouton_appliquer.pack(side=tk.LEFT, padx=10)
-
-    bouton_annuler = tk.Button(frame_boutons, text="Annuler", command=annuler_effet)
-    bouton_annuler.pack(side=tk.LEFT, padx=10)
-
-
-def filtre_bords_sobel():
-    global img, img_org
-    img_array = np.array(img)
-
-    # Noyaux Sobel horizontaux et verticaux
-    sobel_x = np.array([[-1, 0, 1],
-                        [-2, 0, 2],
-                        [-1, 0, 1]])
-    sobel_y = np.array([[-1, -2, -1],
-                        [0,  0,  0],
-                        [1,  2,  1]])
-
-    # Nouvelle image vide pour stocker le résultat
-    result = np.zeros_like(img_array)
-
-    # Application sur chaque canal (R, G, B)
-    for c in range(3):
-        canal = img_array[:, :, c]
-
-        grad_x = convolve2d(canal, sobel_x, mode='same', boundary='symm')
-        grad_y = convolve2d(canal, sobel_y, mode='same', boundary='symm')
-
-        # Calcul du module du gradient
-        magnitude = np.sqrt(grad_x**2 + grad_y**2)
-        result[:, :, c] = np.clip(magnitude, 0, 255)
-
-    img_bords = Image.fromarray(result.astype(np.uint8))
-    refresh_canva(img_bords)
-
+    img = img_fusion
+    photo = ImageTk.PhotoImage(img)
+    canvas.config(width=img.width, height=img.height)
+    canvas.delete("all")
+    canvas.create_image(0, 0, anchor=tk.NW, image=photo)
 
 # Fenêtre principale
 fenetre = tk.Tk()
@@ -302,25 +132,25 @@ fenetre.geometry("500x500")
 canvas = tk.Canvas(fenetre)
 canvas.pack()
 
-# Création d'un menu
+# Création du menu
 menu = tk.Menu(fenetre)
 
-# Le menu pour ouvrir une image
 menu_ouvrir = tk.Menu(menu)
 menu.add_cascade(label="Ouvrir", menu=menu_ouvrir)
 menu_ouvrir.add_command(label="Ouvrir une image", command=lambda: charger())
 
-# Le menu pour les effets
 menu_effets = tk.Menu(menu)
 menu.add_cascade(label="Effets", menu=menu_effets)
 menu_effets.add_command(label="Ajouter un filtre vert", command=lambda: appliquer_filtre("vert"))
 menu_effets.add_command(label="Ajouter un filtre gris", command=lambda: appliquer_filtre("gris"))
-menu_effets.add_command(label="Ajuster la luminostié", command=lambda: luminositer())
-menu_effets.add_command(label="Appliquer un contraste", command=lambda: contraste())
-menu_effets.add_command(label="Appliquer un flou", command=lambda: flou())
-menu_effets.add_command(label="Appliquer un flou gaussien", command=lambda: flou_gaussien())
-menu_effets.add_command(label="Appliquer une detection des bords", command=lambda: filtre_bords_sobel())
 menu_effets.add_command(label="Enlever tous les effets", command=lambda: appliquer_filtre("Nul"))
+
+menu_lum = tk.Menu(menu)
+menu.add_cascade(label="Luminosité", menu=menu_lum)
+menu_lum.add_command(label="Ajuster la luminosité", command=lambda: luminositer())
+
+# ✅ Menu pour la fusion
+menu.add_command(label="Fusionner image", command=fusion_images)
 
 fenetre.pack_propagate(True)
 fenetre.config(menu=menu)
