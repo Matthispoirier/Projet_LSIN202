@@ -1,7 +1,7 @@
 # Projet_LSIN202
 
 FILTRE GRIS EXPLICATION
-img = img.convert("L") --> .convert prend une image ici "img" est convertit ses pixels en mode "luminance", chaque pixel de l'image n'ont plus qu'une valeur au lieu de 3(R, G et B)
+img = img.convert("L") --> .convert prend une image ici "img" est convertit ses pixels en mode "luminance", chaque pixel de l'image n'ont plus qu'une valeur au lieu de 3(R, G et B)\n
 matrice_pixels = np.array(img.convert("RGB")) --> ici stock dans la variable "matrice_pixels" un tableau des pixels de img, grâce à np.array, que l'on a reconvertit en rgb afin d'avoir 3 valeur
 
 GAMMA EXPLICATION
