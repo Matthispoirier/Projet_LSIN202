@@ -102,7 +102,6 @@ def luminositer():
                                command=annuler_effet)
     bouton_annuler.pack(side=tk.LEFT, padx=10)
 
-# ✅ Nouvelle fonction : fusion d’image simple avec redimensionnement
 def fusion_images():
     global img, photo, canvas
 
@@ -149,7 +148,6 @@ menu_lum = tk.Menu(menu)
 menu.add_cascade(label="Luminosité", menu=menu_lum)
 menu_lum.add_command(label="Ajuster la luminosité", command=lambda: luminositer())
 
-# ✅ Menu pour la fusion
 menu.add_command(label="Fusionner image", command=fusion_images)
 
 fenetre.pack_propagate(True)
